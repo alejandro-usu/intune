@@ -53,14 +53,14 @@
     -Reboot or -Shutdown is specified).
 
 .EXAMPLE
-    .\usuap.ps1 -GroupTag "DPINFT"
-    .\usuap.ps1 -GroupTag "Lab-DPINFT"
-    .\usuap.ps1 -GroupTag "Shared-DPINFT" -AssignedComputerName "DPINFT-Lab-01"
-    .\usuap.ps1 -GroupTag "DPINFT" -AssignedPrefix "DPINFT"
-    .\usuap.ps1 -GroupTag "DPINFT" -AssignedPrefix "LAB"
-    .\usuap.ps1 -GroupTag "DPINFT" -Reboot -RebootDelay 5
-    .\usuap.ps1 -GroupTag "DPINFT" -Shutdown
-    .\usuap.ps1 -GroupTag "SomeDifferentTag" -OverrideGroupTag
+    .\apv2.ps1 -GroupTag "DPINFT"
+    .\apv2.ps1 -GroupTag "Lab-DPINFT"
+    .\apv2.ps1 -GroupTag "Shared-DPINFT" -AssignedComputerName "DPINFT-Lab-01"
+    .\apv2.ps1 -GroupTag "DPINFT" -AssignedPrefix "DPINFT"
+    .\apv2.ps1 -GroupTag "DPINFT" -AssignedPrefix "LAB"
+    .\apv2.ps1 -GroupTag "DPINFT" -Reboot -RebootDelay 5
+    .\apv2.ps1 -GroupTag "DPINFT" -Shutdown
+    .\apv2.ps1 -GroupTag "SomeDifferentTag" -OverrideGroupTag
 #>
 
 [CmdletBinding()]
