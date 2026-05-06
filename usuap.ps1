@@ -34,10 +34,10 @@
     Autoremove the script after successful upload (done regardless if -Reboot is specified)
 
 .EXAMPLE
-    .\get-usuap.ps1 -GroupTag "DPINFT"
-    .\get-usuap.ps1 -GroupTag "DPINFT" -AssignedComputerName "CUSTOM-PC-01"
-    .\get-usuap.ps1 -GroupTag "DPINFT" -Reboot -RebootDelay 5
-    .\get-usuap.ps1 -GroupTag "DPINFT" -Shutdown
+    .\usuap.ps1 -GroupTag "DPINFT"
+    .\usuap.ps1 -GroupTag "DPINFT" -AssignedComputerName "CUSTOM-PC-01"
+    .\usuap.ps1 -GroupTag "DPINFT" -Reboot -RebootDelay 5
+    .\usuap.ps1 -GroupTag "DPINFT" -Shutdown
 #>
 
 [CmdletBinding()]
