@@ -15,23 +15,26 @@
     automatically generated as DPCLAS-<SerialNumber> (truncated to 15 chars).
 
 .PARAMETER UseWAM
-    Re-enables the new method of signing in, which allows for use of security keys, but shows that bothersome all apps page that messes with enrollment.
+    Re-enables the new (WAM) sign-in method, which allows use of security keys
+    but shows the "all apps" page that interferes with enrollment.
 
 .PARAMETER Reboot
-    Reboots the computer after completion. Defaults to 10 second delay unless RebootDelay is set
+    Reboots the computer after completion. Defaults to a 10 second delay unless
+    -RebootDelay is set. Cannot be used with -Shutdown.
 
 .PARAMETER Shutdown
-    Shuts down the computer after completion. Defaults to 10 second delay unless ShutdownDelay is set.
-    Cannot be used with -Reboot.
+    Shuts down the computer after completion. Defaults to a 10 second delay unless
+    -ShutdownDelay is set. Cannot be used with -Reboot.
 
 .PARAMETER RebootDelay
-    Optional for reboot in seconds after successful upload (only applies if -Reboot is specified)
+    Optional delay in seconds before reboot (only applies if -Reboot is specified).
 
 .PARAMETER ShutdownDelay
-    Optional delay in seconds before shutdown (only applies if -Shutdown is specified)
+    Optional delay in seconds before shutdown (only applies if -Shutdown is specified).
 
 .PARAMETER AutoRemove
-    Autoremove the script after successful upload (done regardless if -Reboot is specified)
+    Delete this script after a successful upload. This also happens automatically
+    whenever -Reboot or -Shutdown is used.
 
 .EXAMPLE
     .\usuap.ps1 -GroupTag "DPINFT"
@@ -56,9 +59,11 @@ param(
     [int]$ShutdownDelay,
     [switch]$AutoRemove
 )
+
 $CLIENT_ID = "87d8aa30-7d13-4f37-8914-ebe8c7097789"
 $TENANT_ID = "ac352f9b-eb63-4ca2-9cf9-f4c40047ceff"
 
+# --- Validate parameters ---------------------------------------------------
 
 if ($GroupTag) {
     if ($GroupTag -notmatch 'DP[A-Z]{3,4}') {
@@ -76,7 +81,7 @@ if ($Reboot -and $Shutdown) {
     exit 1
 }
 
-# AssignedComputerName is auto-generated from serial if not provided manually
+# --- Prerequisites ---------------------------------------------------------
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -ErrorAction SilentlyContinue | Out-Null
@@ -88,41 +93,46 @@ if (-not (Get-Module -Name Microsoft.Graph.Authentication -ListAvailable)) {
 
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
 
+# --- Connect to Microsoft Graph --------------------------------------------
+
 Write-Host "Connecting to Microsoft Graph..." -ForegroundColor Cyan
-if (!$UseWAM) {
-    Set-MgGraphOption -DisableLoginByWAM $true
-}
+Set-MgGraphOption -DisableLoginByWAM (-not $UseWAM)
+
 try {
     Connect-MgGraph -Scopes "DeviceManagementServiceConfig.ReadWrite.All" -NoWelcome -TenantId $TENANT_ID -ClientId $CLIENT_ID
-} catch {
+}
+catch {
+    Write-Error "Failed to connect to Microsoft Graph: $_"
     exit 1
 }
 
-$context = Get-MgContext
-if (-not $context) {
+if (-not (Get-MgContext)) {
+    Write-Error "Microsoft Graph context was not established. Aborting."
     exit 1
 }
+
+# --- Collect hardware information ------------------------------------------
 
 Write-Host "Collecting hardware information from this device..." -ForegroundColor Cyan
 
 try {
-    $bios      = Get-WmiObject -Class Win32_BIOS -ErrorAction Stop
-    $serial    = $bios.SerialNumber.Trim()
+    $bios   = Get-CimInstance -ClassName Win32_BIOS -ErrorAction Stop
+    $serial = $bios.SerialNumber.Trim()
 }
 catch {
-    Write-Error "Failed to retrieve serial number via WMI: $_"
+    Write-Error "Failed to retrieve serial number: $_"
     exit 1
 }
 
 try {
-    $devDetail    = Get-WmiObject -Namespace root/cimv2/mdm/dmmap `
-                        -Class MDM_DevDetail_Ext01 `
-                        -Filter "InstanceID='Ext' AND ParentID='./DevDetail'" `
-                        -ErrorAction Stop
+    $devDetail = Get-CimInstance -Namespace root/cimv2/mdm/dmmap `
+                    -ClassName MDM_DevDetail_Ext01 `
+                    -Filter "InstanceID='Ext' AND ParentID='./DevDetail'" `
+                    -ErrorAction Stop
     $hardwareHash = $devDetail.DeviceHardwareData
 }
 catch {
-    Write-Error "Failed to retrieve hardware hash via WMI. Ensure the script is running as Administrator: $_"
+    Write-Error "Failed to retrieve hardware hash. Ensure the script is running as Administrator: $_"
     exit 1
 }
 
@@ -133,16 +143,18 @@ if ([string]::IsNullOrWhiteSpace($hardwareHash)) {
 
 # Auto-generate computer name from serial if not manually provided
 if (-not $AssignedComputerName) {
-    $prefix = "DPCLAS-"
-    $maxSerial = 15 - $prefix.Length  # 8 characters left for serial
+    $prefix          = "DPCLAS-"
+    $maxSerial       = 15 - $prefix.Length   # 8 characters left for the serial
     $truncatedSerial = $serial.Substring(0, [Math]::Min($serial.Length, $maxSerial))
     $AssignedComputerName = "$prefix$truncatedSerial"
     Write-Host "  Auto-generated computer name from serial number." -ForegroundColor Cyan
 }
 
 Write-Host "  Serial number : $serial" -ForegroundColor Gray
-if ($GroupTag)            { Write-Host "  Group tag     : $GroupTag"            -ForegroundColor Gray }
+if ($GroupTag) { Write-Host "  Group tag     : $GroupTag" -ForegroundColor Gray }
 Write-Host "  Computer name : $AssignedComputerName" -ForegroundColor Gray
+
+# --- Import device to Autopilot --------------------------------------------
 
 $importUri = "https://graph.microsoft.com/beta/deviceManagement/importedWindowsAutopilotDeviceIdentities"
 
@@ -151,7 +163,6 @@ $importBody = @{
     hardwareIdentifier = $hardwareHash
     groupTag           = $GroupTag
     "@odata.type"      = "#microsoft.graph.importedWindowsAutopilotDeviceIdentity"
-
 } | ConvertTo-Json
 
 Write-Host "Uploading device to Autopilot..." -ForegroundColor Cyan
@@ -172,11 +183,13 @@ if (-not $importedId) {
 }
 Write-Host "  Import record ID: $importedId" -ForegroundColor Gray
 
+# --- Poll for import completion --------------------------------------------
+
 Write-Host "Waiting for import to complete..." -ForegroundColor Cyan
 
-$statusUri = "$importUri/$importedId"
-$startTime = [datetime]::UtcNow
-$timeout   = $startTime.AddMinutes(10)
+$statusUri    = "$importUri/$importedId"
+$startTime    = [datetime]::UtcNow
+$timeout      = $startTime.AddMinutes(10)
 $importStatus = "unknown"
 $extraMessage = ">"
 
@@ -184,7 +197,6 @@ while ([datetime]::UtcNow -lt $timeout) {
     Start-Sleep -Seconds 1
     $elapsed = [int]([datetime]::UtcNow - $startTime).TotalSeconds
     Write-Host "`r  Elapsed: ${elapsed}s ${extraMessage}" -NoNewline
-
 
     # Poll the API every 5 seconds because the default 15 is awful
     if ($elapsed % 5 -eq 0) {
@@ -203,6 +215,8 @@ while ([datetime]::UtcNow -lt $timeout) {
 }
 
 Write-Host ""
+
+# --- Handle result ---------------------------------------------------------
 
 switch ($importStatus) {
     "complete" {
@@ -243,26 +257,23 @@ switch ($importStatus) {
                 catch {
                     Write-Warning "Failed to set computer name: $_`nYou may need to set it manually in Intune."
                 }
-            } else {
+            }
+            else {
                 Write-Warning "Timed out waiting for device '$serial' to appear in Autopilot. You may need to set the name manually in Intune."
             }
         }
 
         if ($AutoRemove -or $Reboot -or $Shutdown) {
-            Remove-Item $PSCommandPath
+            Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
         }
         if ($Reboot) {
-            if (!$RebootDelay) {
-                $RebootDelay = 10
-            }
+            if (-not $RebootDelay) { $RebootDelay = 10 }
             Write-Host "Rebooting in $RebootDelay seconds..."
             Start-Sleep $RebootDelay
             Restart-Computer
         }
         if ($Shutdown) {
-            if (!$ShutdownDelay) {
-                $ShutdownDelay = 10
-            }
+            if (-not $ShutdownDelay) { $ShutdownDelay = 10 }
             Write-Host "Shutting down in $ShutdownDelay seconds..."
             Start-Sleep $ShutdownDelay
             Stop-Computer
