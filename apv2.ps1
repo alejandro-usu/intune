@@ -179,7 +179,7 @@ function Write-USU {
         [string]$ForegroundColor = "White"
     )
     if ($GoAggies -or $Rainbow) {
-        $usuColors     = @("DarkBlue", "Blue", "DarkCyan", "Cyan", "White")
+        $usuColors     = @("Blue", "Cyan", "White")
         $rainbowColors = @("Red", "DarkYellow", "Yellow", "Green", "Cyan", "Blue", "Magenta")
         $palette = if ($Rainbow) { $rainbowColors } else { $usuColors }
 
