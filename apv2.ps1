@@ -116,7 +116,7 @@ if ($GoAggies) {
     )
     Write-Host "`n"
     for ($i = 0; $i -lt 14; $i++) {
-        Write-Host ($cow[$i] + $usuText[$i] + $cow[$i]) -ForegroundColor DarkBlue
+        Write-Host ($cow[$i] + $usuText[$i] + $cow[$i]) -ForegroundColor Cyan
     }
     Write-Host "`n"
 }
