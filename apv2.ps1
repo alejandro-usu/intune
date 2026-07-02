@@ -81,7 +81,7 @@ param(
     [Parameter(Mandatory = $false)]
     [int]$ShutdownDelay,
     [switch]$AutoRemove,
-    [Alias("1888")]
+    [Alias("moo")]
     [switch]$GoAggies,
     [Alias("hehe")]
     [switch]$Rainbow
