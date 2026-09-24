@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Installs prerequisites, detects a plugged-in USB flash drive, runs
-    Get-AutopilotDiagnosticsCommunity with -Online, and saves the output.
+    Get-AutopilotDiagnosticsCommunity, and saves the output.
     If no USB drive is found, prompts for a file path.
 
 .EXAMPLE
@@ -73,7 +73,7 @@ if (-not (Get-InstalledScript -Name $scriptName -ErrorAction SilentlyContinue)) 
 Write-Host "Running Autopilot diagnostics (this may take a minute)..." -ForegroundColor Cyan
 
 try {
-    & $scriptName -Online | Out-File -FilePath $outPath -Encoding UTF8
+    & $scriptName | Out-File -FilePath $outPath -Encoding UTF8
     Write-Host "Diagnostics saved to: $outPath" -ForegroundColor Green
 }
 catch {
